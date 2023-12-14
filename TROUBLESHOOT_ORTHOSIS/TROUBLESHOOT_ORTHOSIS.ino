@@ -201,6 +201,8 @@ void setup() {
     mpus.halt(F("MPU6050 connection failed, halting"));
   }
 
+  /*
+
   // wait for ready
   Serial.println(F("\nSend any character to begin DMP programming and demo: "));
   while (Serial.available() && Serial.read())
@@ -210,6 +212,8 @@ void setup() {
   while (Serial.available() && Serial.read())
     ; // empty buffer again
   activityLed.setPeriod(500); // slow down led to 2Hz
+
+*/
 
   // load and configure the DMP
   Serial.println(F("Initializing DMP..."));
