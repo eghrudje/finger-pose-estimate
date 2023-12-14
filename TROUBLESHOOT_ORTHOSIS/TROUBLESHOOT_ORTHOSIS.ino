@@ -1,4 +1,4 @@
- //#include "freertos/FreeRTOS.h"
+//#include "freertos/FreeRTOS.h"
 //#include "freertos/task.h"
 //TROUBLESHOOT 
 // I2C device class (I2Cdev) demonstration Arduino sketch for MPU6050 class using DMP (MotionApps v2.0)
@@ -115,9 +115,6 @@ const int dirPin = 13;   // Direction pin
 const int enablePin = 14;
 const int interruptPin = 3;
 
-//const int A = 8;
-//const int B = 9;
-
 
 // Define variables
 const int stepsPerRevolution = 50;
@@ -151,9 +148,19 @@ DeathTimer deathTimer(5000L);
 // ===                      INITIAL SETUP                       ===
 // ================================================================
 
+boolean flag = false;
+
 void setup() {
   // Set the control pins as OUTPUT
-  attachInterrupt(digitalPinToInterrupt(interruptPin), saveData, RISING);
+  attachInterrupt(digitalPinToInterrupt(interruptPin), saveDataInterrupt, RISING);
+  
+  pinMode(stepPin, OUTPUT);
+  pinMode(dirPin, OUTPUT);
+  pinMode(enablePin, OUTPUT);
+  
+  // Set the initial direction (clockwise or counterclockwise)
+  digitalWrite(dirPin, HIGH); // Set direction to HIGH for clockwise rotation
+  digitalWrite(enablePin, LOW);
   
   // join I2C bus (I2Cdev library doesn't do this automatically)
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
@@ -185,11 +192,7 @@ void setup() {
     //mpus.add(AD0_PIN_2);
     }
 
-  mpus.initialize();
-
-  // configure LED for output
-  pinMode(LED_PIN, OUTPUT);
-
+  mpus.initialize(); 
   // verify connection
   Serial.println(F("Testing device connections..."));
   if (mpus.testConnection()) {
@@ -198,8 +201,6 @@ void setup() {
     mpus.halt(F("MPU6050 connection failed, halting"));
   }
 
-  
-/*
   // wait for ready
   Serial.println(F("\nSend any character to begin DMP programming and demo: "));
   while (Serial.available() && Serial.read())
@@ -209,8 +210,6 @@ void setup() {
   while (Serial.available() && Serial.read())
     ; // empty buffer again
   activityLed.setPeriod(500); // slow down led to 2Hz
-
-  */
 
   // load and configure the DMP
   Serial.println(F("Initializing DMP..."));
@@ -236,13 +235,56 @@ void setup() {
     currentMPU->_mpu.setYGyroOffset(76);
     currentMPU->_mpu.setZGyroOffset(-85);
     currentMPU->_mpu.setZAccelOffset(1788); // 1688 factory default for my test chip
-  } 
+  }
   mpus.programDmp(0);
   if (useSecondMpu)
     mpus.programDmp(1);
     //mpus.programDmp(2);
 
 }
+
+void rot(void* pvParameters) {
+  while(1) {
+  
+  //Serial.print("motor func running on core  ");
+  //Serial.println (xPortGetCoreID());
+  //delay(2000);
+  for (int i = 0; i < stepsPerRevolution; i++) {
+    digitalWrite(stepPin, HIGH);
+  delay(10); // Adjust this delay as needed
+  digitalWrite(stepPin, LOW);
+  delay(10); // Adjust this delay as needed
+
+  // Step AC
+  digitalWrite(stepPin, HIGH);
+  delay(10); // Adjust this delay as needed
+  digitalWrite(stepPin, LOW);
+  delay(10); // Adjust this delay as needed
+
+  // Step BC
+  digitalWrite(stepPin, HIGH);
+  delay(10); // Adjust this delay as needed
+  digitalWrite(stepPin, LOW);
+  delay(10); // Adjust this delay as needed
+
+  // Step BA
+  digitalWrite(stepPin, HIGH);
+  delay(10); // Adjust this delay as needed
+  digitalWrite(stepPin, LOW);
+  delay(10); // Adjust this delay as needed
+
+  stepCount++;  // Increment the step counter
+    
+  if (stepCount >= stepsPerRevolution) {
+    // If the desired number of steps is reached, disable the motor driver
+    digitalWrite(enablePin, HIGH); // Disable the motor driver
+    return;
+  }
+    
+  }
+  }
+  }
+
   
   void sensorFunc() {
      static uint8_t mpu = 0;
@@ -412,11 +454,12 @@ void handleMPUevent(uint8_t mpu) {
   //}
 
 void loop() {
-  //if (digitalRead(8) == HIGH && digitalRead(9) == LOW) {
-     //sensorFunc();
-  //}
+  if (flag == true)
+  sensorFunc();
+  flag = false;
+
   
 }
-void saveData(){
-   sensorFunc();
+void saveDataInterrupt () {
+  flag = true;
   }
