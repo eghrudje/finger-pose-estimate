@@ -2,7 +2,7 @@
 const int stepPin = 6;  // Step pin
 const int dirPin = 5;   // Direction pin
 const int enablePin = 7; //Enable Pin
-const int interruptPin = 4;
+const int interruptPin = 2;
 
 //const int A = 8;
 //const int B = 9;
@@ -17,24 +17,19 @@ void setup() {
   pinMode(stepPin, OUTPUT);
   pinMode(dirPin, OUTPUT);
   pinMode(enablePin, OUTPUT);
-  pinMode(4, OUTPUT);
-
-  //pinMode(A, OUTPUT);
-  //pinMode(B, OUTPUT);
+  pinMode(interruptPin, OUTPUT);
   
   // Set the initial direction (clockwise or counterclockwise)
   digitalWrite(dirPin, LOW); // Set direction to HIGH for clockwise rotation
 
   digitalWrite(enablePin, LOW);
-  //digitalWrite(A, LOW);
-  //digitalWrite(B, LOW);
   
 }
 
 void rot() {
   
 for (int i = 0; i < stepsPerRevolution; i++) {
-  digitalWrite(4, HIGH);
+  digitalWrite(interruptPin, HIGH);
   
   digitalWrite(stepPin, HIGH);
   delay(10); // Adjust this delay as needed
@@ -54,13 +49,13 @@ for (int i = 0; i < stepsPerRevolution; i++) {
   delay(10); // Adjust this delay as needed
 
   // Step BA
-  digitalWrite(stepPin, HIGH);
+  digitalWrite(stepPin, HIGH); 
   delay(10); // Adjust this delay as needed
   digitalWrite(stepPin, LOW);
   delay(10); // Adjust this delay as needed
 
   stepCount++;  // Increment the step counter
-  digitalWrite(4, LOW);
+  digitalWrite(interruptPin, LOW);
   
     
   if (stepCount >= stepsPerRevolution) {
