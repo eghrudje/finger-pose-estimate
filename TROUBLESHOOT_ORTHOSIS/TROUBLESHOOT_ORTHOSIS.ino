@@ -1,4 +1,6 @@
-//#include "freertos/FreeRTOS.h"
+#include <EEPROM.h>
+
+ //#include "freertos/FreeRTOS.h"
 //#include "freertos/task.h"
 //TROUBLESHOOT 
 // I2C device class (I2Cdev) demonstration Arduino sketch for MPU6050 class using DMP (MotionApps v2.0)
@@ -115,7 +117,6 @@ const int dirPin = 13;   // Direction pin
 const int enablePin = 14;
 const int interruptPin = 3;
 
-
 // Define variables
 const int stepsPerRevolution = 50;
 int stepCount = 0;  // Initialize step counter variable
@@ -149,18 +150,14 @@ DeathTimer deathTimer(5000L);
 // ================================================================
 
 boolean flag = false;
+//boolean continueFlag = false;
+float storedValues[MAX_COUNT][SENSOR_COUNT][3]; // Array to temporarily store roll, pitch, and yaw values for each sensor
 
 void setup() {
   // Set the control pins as OUTPUT
+  
+  pinMode(interruptPin, INPUT);
   attachInterrupt(digitalPinToInterrupt(interruptPin), saveDataInterrupt, RISING);
-  
-  pinMode(stepPin, OUTPUT);
-  pinMode(dirPin, OUTPUT);
-  pinMode(enablePin, OUTPUT);
-  
-  // Set the initial direction (clockwise or counterclockwise)
-  digitalWrite(dirPin, HIGH); // Set direction to HIGH for clockwise rotation
-  digitalWrite(enablePin, LOW);
   
   // join I2C bus (I2Cdev library doesn't do this automatically)
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
@@ -192,7 +189,11 @@ void setup() {
     //mpus.add(AD0_PIN_2);
     }
 
-  mpus.initialize(); 
+  mpus.initialize();
+
+  // configure LED for output
+  pinMode(LED_PIN, OUTPUT);
+
   // verify connection
   Serial.println(F("Testing device connections..."));
   if (mpus.testConnection()) {
@@ -201,8 +202,8 @@ void setup() {
     mpus.halt(F("MPU6050 connection failed, halting"));
   }
 
-  /*
-
+  
+/*
   // wait for ready
   Serial.println(F("\nSend any character to begin DMP programming and demo: "));
   while (Serial.available() && Serial.read())
@@ -213,7 +214,7 @@ void setup() {
     ; // empty buffer again
   activityLed.setPeriod(500); // slow down led to 2Hz
 
-*/
+  */
 
   // load and configure the DMP
   Serial.println(F("Initializing DMP..."));
@@ -239,59 +240,16 @@ void setup() {
     currentMPU->_mpu.setYGyroOffset(76);
     currentMPU->_mpu.setZGyroOffset(-85);
     currentMPU->_mpu.setZAccelOffset(1788); // 1688 factory default for my test chip
-  }
+  } 
   mpus.programDmp(0);
   if (useSecondMpu)
     mpus.programDmp(1);
     //mpus.programDmp(2);
 
 }
-
-void rot(void* pvParameters) {
-  while(1) {
-  
-  //Serial.print("motor func running on core  ");
-  //Serial.println (xPortGetCoreID());
-  //delay(2000);
-  for (int i = 0; i < stepsPerRevolution; i++) {
-    digitalWrite(stepPin, HIGH);
-  delay(10); // Adjust this delay as needed
-  digitalWrite(stepPin, LOW);
-  delay(10); // Adjust this delay as needed
-
-  // Step AC
-  digitalWrite(stepPin, HIGH);
-  delay(10); // Adjust this delay as needed
-  digitalWrite(stepPin, LOW);
-  delay(10); // Adjust this delay as needed
-
-  // Step BC
-  digitalWrite(stepPin, HIGH);
-  delay(10); // Adjust this delay as needed
-  digitalWrite(stepPin, LOW);
-  delay(10); // Adjust this delay as needed
-
-  // Step BA
-  digitalWrite(stepPin, HIGH);
-  delay(10); // Adjust this delay as needed
-  digitalWrite(stepPin, LOW);
-  delay(10); // Adjust this delay as needed
-
-  stepCount++;  // Increment the step counter
-    
-  if (stepCount >= stepsPerRevolution) {
-    // If the desired number of steps is reached, disable the motor driver
-    digitalWrite(enablePin, HIGH); // Disable the motor driver
-    return;
-  }
-    
-  }
-  }
-  }
-
   
   void sensorFunc() {
-     static uint8_t mpu = 0;
+       static uint8_t mpu = 0;
      static MPU6050_Wrapper* currentMPU = NULL;
   if (useSecondMpu) {
     for (int i=0;i<2;i++) {
@@ -308,18 +266,6 @@ void rot(void* pvParameters) {
       handleMPUevent(mpu);
     }
   }
-  
-  
-  // other program behavior stuff here
-  // .
-  // .
-  // .
-  // if you are really paranoid you can frequently test in between other
-  // stuff to see if mpuInterrupt is true, and if so, "break;" from the
-  // while() loop to immediately process the MPU data
-  // .
-  // .
-  // .
 
   activityLed.update();
   deathTimer.update();  
@@ -385,6 +331,10 @@ void handleMPUevent(uint8_t mpu) {
     currentMPU->_mpu.dmpGetQuaternion(&q, fifoBuffer);
     currentMPU->_mpu.dmpGetGravity(&gravity, &q);
     currentMPU->_mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+
+/*
+
+   
 #if defined(OUTPUT_READABLE_YAWPITCHROLL)
     OUTPUT_SERIAL.print("y");
 #endif
@@ -398,6 +348,8 @@ void handleMPUevent(uint8_t mpu) {
     OUTPUT_SERIAL.println(ypr[2]);
 //    OUTPUT_SERIAL.println(ypr[2] * 180 / M_PI);
     
+*/
+
 #endif
 
 #ifdef OUTPUT_READABLE_REALACCEL
@@ -446,6 +398,9 @@ void handleMPUevent(uint8_t mpu) {
 #endif
 
   }
+  storedValues[stepCount][mpu][0] = ypr[0];
+  storedValues[stepCount][mpu][1] = ypr[1];
+  storedValues[stepCount][mpu][2] = ypr[2];
 }
 
 // ================================================================
@@ -458,12 +413,63 @@ void handleMPUevent(uint8_t mpu) {
   //}
 
 void loop() {
-  if (flag == true)
-  sensorFunc();
-  flag = false;
 
-  
+  if (stepCount < 25){
+    if (flag == true) {
+     sensorFunc();
+     flag = false;
+     writeStoredValuesToEEPROM();
+  } 
+ 
+   } else {
+      serialPrintStoredValues()
+      }
 }
-void saveDataInterrupt () {
-  flag = true;
+void saveDataInterrupt(){
+  stepCount++;
+   flag = true;
   }
+
+
+void writeStoredValuesToEEPROM() {
+    int address = 0;
+
+    // Write the stored values to EEPROM
+    for (int i = 0; i < stepCount; i++) {
+        for (int j = 0; j < 2; j++) {
+            EEPROM.put(address, storedValues[i][j]);
+            address += sizeof(storedValues[i][j]);
+        }
+    }
+}
+
+void readStoredValuesFromEEPROM() {
+    int address = 0;
+
+    // Read the stored values from EEPROM
+    for (int i = 0; i < stepCount; i++) {
+        for (int j = 0; j < 2; j++) {
+            EEPROM.get(address, storedValues[i][j]);
+            address += sizeof(storedValues[i][j]);
+        }
+    }
+}
+
+void serialPrintStoredValues() {
+    for (int i = 0; i < stepCount; i++) {
+        for (int j = 0; j < 2; j++) {
+#if defined(OUTPUT_READABLE_YAWPITCHROLL)
+            OUTPUT_SERIAL.print("y");
+#endif
+            OUTPUT_SERIAL.print("pr:"); OUTPUT_SERIAL.print(j); OUTPUT_SERIAL.print(" - Step ");
+            OUTPUT_SERIAL.print(i);
+#if defined(OUTPUT_READABLE_YAWPITCHROLL)
+            OUTPUT_SERIAL.print(storedValues[i][j][0]);
+            OUTPUT_SERIAL.print("\t");
+#endif
+            OUTPUT_SERIAL.print(storedValues[i][j][1]);
+            OUTPUT_SERIAL.print("\t");
+            OUTPUT_SERIAL.println(storedValues[i][j][2]);
+        }
+    }
+}
