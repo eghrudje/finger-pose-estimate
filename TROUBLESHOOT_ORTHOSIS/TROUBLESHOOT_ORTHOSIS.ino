@@ -150,11 +150,15 @@ DeathTimer deathTimer(5000L);
 // ================================================================
 
 boolean flag = false;
+#define MAX_COUNT 25
+#define SENSOR_COUNT 2
 //boolean continueFlag = false;
-float storedValues[MAX_COUNT][SENSOR_COUNT][3]; // Array to temporarily store roll, pitch, and yaw values for each sensor
+float storedValues[MAX_COUNT][2][3]; // Array to temporarily store roll, pitch, and yaw values for each sensor
 
 void setup() {
   // Set the control pins as OUTPUT
+
+  // clearEEPROM();
   
   pinMode(interruptPin, INPUT);
   attachInterrupt(digitalPinToInterrupt(interruptPin), saveDataInterrupt, RISING);
@@ -293,7 +297,7 @@ void handleMPUevent(uint8_t mpu) {
 
     // read and dump a packet if the queue contains more than one
     while (currentMPU->_fifoCount >= 2 * currentMPU->_packetSize) {
-      // read and dump one sample
+      // read and dump one samples
      // Serial.print("DUMP"); // this trace will be removed soon
       currentMPU->getFIFOBytes(fifoBuffer);
     }
@@ -331,6 +335,9 @@ void handleMPUevent(uint8_t mpu) {
     currentMPU->_mpu.dmpGetQuaternion(&q, fifoBuffer);
     currentMPU->_mpu.dmpGetGravity(&gravity, &q);
     currentMPU->_mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+
+int address = stepCount * mpu * sizeof(ypr);
+EEPROM.put(address, ypr);
 
 /*
 
@@ -398,9 +405,7 @@ void handleMPUevent(uint8_t mpu) {
 #endif
 
   }
-  storedValues[stepCount][mpu][0] = ypr[0];
-  storedValues[stepCount][mpu][1] = ypr[1];
-  storedValues[stepCount][mpu][2] = ypr[2];
+
 }
 
 // ================================================================
@@ -414,40 +419,26 @@ void handleMPUevent(uint8_t mpu) {
 
 void loop() {
 
-  if (stepCount < 25){
+  if (stepCount <  MAX_COUNT){
     if (flag == true) {
      sensorFunc();
      flag = false;
-     writeStoredValuesToEEPROM();
   } 
  
    } else {
-      serialPrintStoredValues()
+      serialPrintStoredValues();
       }
 }
 void saveDataInterrupt(){
   stepCount++;
-   flag = true;
+  flag = true;
   }
-
-
-void writeStoredValuesToEEPROM() {
-    int address = 0;
-
-    // Write the stored values to EEPROM
-    for (int i = 0; i < stepCount; i++) {
-        for (int j = 0; j < 2; j++) {
-            EEPROM.put(address, storedValues[i][j]);
-            address += sizeof(storedValues[i][j]);
-        }
-    }
-}
 
 void readStoredValuesFromEEPROM() {
     int address = 0;
-
+  
     // Read the stored values from EEPROM
-    for (int i = 0; i < stepCount; i++) {
+    for (int i = 0; i <  MAX_COUNT; i++) {
         for (int j = 0; j < 2; j++) {
             EEPROM.get(address, storedValues[i][j]);
             address += sizeof(storedValues[i][j]);
@@ -455,8 +446,34 @@ void readStoredValuesFromEEPROM() {
     }
 }
 
+
 void serialPrintStoredValues() {
-    for (int i = 0; i < stepCount; i++) {
+  int address = 0;
+
+  for (int i = 0; i < MAX_COUNT; i++) {
+    for (int j = 1; j < 2; j++) {
+    // Read values from EEPROM
+    float yprStored[3];
+    EEPROM.get(address, yprStored);
+    address += sizeof(yprStored);
+
+    // Serial print values
+    OUTPUT_SERIAL.print("Sensor ");OUTPUT_SERIAL.print(j);
+    OUTPUT_SERIAL.print("\tStep ");OUTPUT_SERIAL.print(i);
+    OUTPUT_SERIAL.print("\tYaw: "); OUTPUT_SERIAL.print(yprStored[0]);
+    OUTPUT_SERIAL.print("\tPitch: "); OUTPUT_SERIAL.print(yprStored[1]);
+    OUTPUT_SERIAL.print("\tRoll: "); OUTPUT_SERIAL.println(yprStored[2]);
+    }
+  }
+}
+
+
+/*
+
+void serialPrintStoredValues() {
+    int address = 0;
+   
+    for (int i = 0; i < MAX_COUNT; i++) {
         for (int j = 0; j < 2; j++) {
 #if defined(OUTPUT_READABLE_YAWPITCHROLL)
             OUTPUT_SERIAL.print("y");
@@ -464,12 +481,30 @@ void serialPrintStoredValues() {
             OUTPUT_SERIAL.print("pr:"); OUTPUT_SERIAL.print(j); OUTPUT_SERIAL.print(" - Step ");
             OUTPUT_SERIAL.print(i);
 #if defined(OUTPUT_READABLE_YAWPITCHROLL)
-            OUTPUT_SERIAL.print(storedValues[i][j][0]);
+            float rollStored;
+             EEPROM.get(address, rollStored);
+            address += sizeof(roll);
+
+            OUTPUT_SERIAL.print(roll);
             OUTPUT_SERIAL.print("\t");
 #endif
-            OUTPUT_SERIAL.print(storedValues[i][j][1]);
+            float pitchStored, yawStored;
+            EEPROM.get(address, pitchStored);
+            address += sizeof(pitchStored);
+            EEPROM.get(address, yawStored);
+            address += sizeof(yawStored);
+
+            OUTPUT_SERIAL.print(pitchStored);
             OUTPUT_SERIAL.print("\t");
-            OUTPUT_SERIAL.println(storedValues[i][j][2]);
+            OUTPUT_SERIAL.println(yawStored);
         }
     }
 }
+
+*/
+
+void clearEEPROM () {
+  for(int i = 0; i < EEPROM.length(); i++){
+    EEPROM.write(i, 0xFF);
+    }
+  }
