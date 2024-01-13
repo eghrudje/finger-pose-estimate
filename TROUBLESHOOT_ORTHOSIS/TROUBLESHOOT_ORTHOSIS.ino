@@ -446,12 +446,12 @@ void readStoredValuesFromEEPROM() {
     }
 }
 
-
+  
 void serialPrintStoredValues() {
   int address = 0;
 
   for (int i = 0; i < MAX_COUNT; i++) {
-    for (int j = 1; j < 2; j++) {
+    for (int j = 0; j < 2; j++) {
     // Read values from EEPROM
     float yprStored[3];
     EEPROM.get(address, yprStored);
